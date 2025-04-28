@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from fastapi import FastAPI, Query
-import undetected_chromedriver.v2 as uc
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
