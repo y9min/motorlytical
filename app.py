@@ -94,7 +94,6 @@ def extract_car_details(text):
         pass
     return details
 
-# Scrape Autotrader
 def scrape_autotrader(cars, criteria, driver):
     data = []
 
@@ -102,42 +101,48 @@ def scrape_autotrader(cars, criteria, driver):
         url = build_url(car, criteria)
         driver.get(url)
 
-        # ✅ Extra long wait to let headless browser fully load JS
-        time.sleep(6)
+        print(f"Visiting URL: {url}")
 
-        # ✅ Aggressive cookie rejection
+        time.sleep(8)  # Longer wait for full load
+
         try:
-            WebDriverWait(driver, 8).until(
+            WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.ID, "onetrust-reject-all-handler"))
             ).click()
-            time.sleep(2)  # Let cookie banner fully close
+            time.sleep(3)
         except Exception:
-            pass  # Ignore if no cookie popup
+            pass
 
-        # ✅ Stronger scroll
-        scroll_page(driver)
+        # Aggressive scroll
+        for _ in range(5):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(3)
 
-        # ✅ Find listings with retry
+        # Save a screenshot to see what headless sees
+        driver.save_screenshot("/app/page_debug.png")
+        print("Saved page_debug.png screenshot!")
+
+        # Now find listings
         listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
 
         if not listings:
-            # Retry once after waiting
-            time.sleep(4)
+            time.sleep(6)
             listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
 
         for listing in listings:
             try:
-                title = listing.text
+                text = listing.text
                 link = listing.find_element(By.TAG_NAME, "a").get_attribute("href")
                 if not link.startswith("http"):
                     link = "https://www.autotrader.co.uk" + link
-                details = extract_car_details(title)
+                details = extract_car_details(text)
                 details["link"] = link
                 data.append(details)
             except Exception:
                 continue
 
     return data
+
 
 # Save CSV
 def save_csv(data):
