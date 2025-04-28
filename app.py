@@ -23,6 +23,14 @@ warnings.filterwarnings("ignore", category=Warning)
 
 app = FastAPI()
 
+@app.get("/debug")
+def get_debug_screenshot():
+    screenshot_path = "/app/page_debug.png"
+    if os.path.exists(screenshot_path):
+        return FileResponse(screenshot_path, media_type='image/png', filename="page_debug.png")
+    else:
+        return {"status": "error", "message": "No screenshot found"}
+
 # User agents
 user_agents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -236,14 +244,6 @@ def scrape(
                 "graph_file": graph_file,
                 "elapsed_seconds": elapsed
             }
-
-@app.get("/debug")
-def get_debug_screenshot():
-    screenshot_path = "/app/page_debug.png"
-    if os.path.exists(screenshot_path):
-        return FileResponse(screenshot_path, media_type='image/png', filename="page_debug.png")
-    else:
-        return {"status": "error", "message": "No screenshot found"}
         
         except Exception as e:
             retries -= 1
