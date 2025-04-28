@@ -2,12 +2,11 @@ import time
 import random
 import pandas as pd
 import datetime
-import re
 import warnings
+import re
 import os
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
 from fastapi import FastAPI, Query
+from fastapi.responses import FileResponse
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -15,30 +14,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium_stealth import stealth
 from bs4 import BeautifulSoup
-from fastapi.responses import FileResponse
+import matplotlib.pyplot as plt
 
-# Disable pandas warnings
-pd.options.mode.chained_assignment = None
+# Disable warnings
 warnings.filterwarnings("ignore", category=Warning)
+pd.options.mode.chained_assignment = None
 
+# Initialize FastAPI
 app = FastAPI()
 
-@app.get("/debug")
-def get_debug_screenshot():
-    screenshot_path = "/app/page_debug.png"
-    if os.path.exists(screenshot_path):
-        return FileResponse(screenshot_path, media_type='image/png', filename="page_debug.png")
-    else:
-        return {"status": "error", "message": "No screenshot found"}
-
-# User agents
-user_agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
-]
-
-# Setup driver
+# Setup Chrome Driver
 def setup_driver():
     options = uc.ChromeOptions()
     options.headless = True
@@ -47,21 +32,19 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument(f"user-agent={random.choice(user_agents)}")
+    options.add_argument(f"user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36")
     driver = uc.Chrome(options=options)
-    stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32",
-            webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
+    stealth(driver, languages=["en-US", "en"], vendor="Google Inc.", platform="Win32", webgl_vendor="Intel Inc.", renderer="Intel Iris OpenGL Engine", fix_hairline=True)
     return driver
 
 # Build search URL
 def build_url(car, criteria):
-    url = f"https://www.autotrader.co.uk/car-search?make={car['make']}&model={car['model']}&postcode={criteria['postcode'].replace(' ', '+')}&radius={criteria['radius']}&include-delivery-options=on&advertising-location=at_cars&sort=most-recent"
-    return url
+    return f"https://www.autotrader.co.uk/car-search?make={car['make']}&model={car['model']}&postcode={criteria['postcode'].replace(' ', '+')}&radius={criteria['radius']}&include-delivery-options=on&advertising-location=at_cars&sort=most-recent"
 
-# Scroll page to load results
+# Scroll page
 def scroll_page(driver):
     last_height = driver.execute_script("return document.body.scrollHeight")
-    for _ in range(10):
+    for _ in range(5):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -71,18 +54,15 @@ def scroll_page(driver):
 
 # Extract car details
 def extract_car_details(text):
-    details = {
-        "price": None, "mileage": None, "year": None,
-        "transmission": None, "fuel": None, "engine": None, "owners": None
-    }
+    details = {"price": None, "mileage": None, "year": None, "transmission": None, "fuel": None, "engine": None, "owners": None}
     try:
-        price_match = re.search(r"(£|Â£|€)\\s*(\\d{1,3}(,\\d{3})*)", text)
+        price_match = re.search(r"(\d{1,3}(,\d{3})*)", text)
         if price_match:
-            details["price"] = price_match.group(2).replace(",", "")
-        mileage_match = re.search(r"(\\d{1,3}(,\\d{3})*)\\s*miles", text, re.IGNORECASE)
+            details["price"] = price_match.group(1).replace(",", "")
+        mileage_match = re.search(r"(\d{1,3}(,\d{3})*) miles", text, re.IGNORECASE)
         if mileage_match:
             details["mileage"] = mileage_match.group(1).replace(",", "")
-        year_match = re.search(r"\\b(20\\d{2}|19\\d{2})\\b", text)
+        year_match = re.search(r"\b(20\d{2}|19\d{2})\b", text)
         if year_match:
             details["year"] = year_match.group(1)
         if "manual" in text.lower():
@@ -93,16 +73,17 @@ def extract_car_details(text):
             details["fuel"] = "Diesel"
         elif "petrol" in text.lower():
             details["fuel"] = "Petrol"
-        engine_match = re.search(r"(\\d\\.\\d)\\s*[Ll]", text)
+        engine_match = re.search(r"(\d\.\d)\s*[Ll]", text)
         if engine_match:
             details["engine"] = engine_match.group(1)
-        owners_match = re.search(r"(\\d)\\s+owners?", text, re.IGNORECASE)
+        owners_match = re.search(r"(\d)\s+owners?", text, re.IGNORECASE)
         if owners_match:
             details["owners"] = owners_match.group(1)
     except:
         pass
     return details
 
+# Scrape Autotrader
 def scrape_autotrader(cars, criteria, driver):
     data = []
 
@@ -110,9 +91,7 @@ def scrape_autotrader(cars, criteria, driver):
         url = build_url(car, criteria)
         driver.get(url)
 
-        print(f"Visiting URL: {url}")
-
-        time.sleep(8)  # Longer wait for full load
+        time.sleep(8)
 
         try:
             WebDriverWait(driver, 10).until(
@@ -122,16 +101,14 @@ def scrape_autotrader(cars, criteria, driver):
         except Exception:
             pass
 
-        # Aggressive scroll
-        for _ in range(5):
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(3)
+        scroll_page(driver)
 
-        # Save a screenshot to see what headless sees
-        driver.save_screenshot("/app/page_debug.png")
-        print("Saved page_debug.png screenshot!")
+        try:
+            driver.save_screenshot("/app/page_debug.png")
+            print("Saved page_debug.png successfully!")
+        except Exception as e:
+            print(f"Failed to save screenshot: {e}")
 
-        # Now find listings
         listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
 
         if not listings:
@@ -152,7 +129,6 @@ def scrape_autotrader(cars, criteria, driver):
 
     return data
 
-
 # Save CSV
 def save_csv(data):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -163,12 +139,10 @@ def save_csv(data):
 
 # Create graph
 def create_price_graph(df, timestamp):
-    df = df.copy()
     if df.empty:
         return None
     df["price"] = pd.to_numeric(df["price"], errors='coerce')
     df.dropna(subset=["price"], inplace=True)
-    df["listing_month"] = datetime.datetime.now().strftime("%b %Y")
     plt.figure(figsize=(10,6))
     plt.hist(df["price"], bins=20, color='skyblue')
     plt.xlabel("Price (£)")
@@ -179,74 +153,39 @@ def create_price_graph(df, timestamp):
     plt.close()
     return graph_name
 
-# Deduplicate data
-def deduplicate_data(df):
-    df.drop_duplicates(subset=["price", "mileage", "year", "engine", "link"], inplace=True)
-    return df
-
-# Analyze supply snapshot
-def analyze_market(df, radius):
-    avg_mileage = None
-    avg_price = None
-    median_price = None
-    competition_index = None
-    try:
-        if "mileage" in df.columns:
-            df["mileage"] = pd.to_numeric(df["mileage"], errors="coerce")
-            avg_mileage = df["mileage"].mean()
-        if "price" in df.columns:
-            df["price"] = pd.to_numeric(df["price"], errors="coerce")
-            avg_price = df["price"].mean()
-            median_price = df["price"].median()
-        price_spread = (df["price"].max() - df["price"].min()) / median_price * 100 if median_price else None
-        market_density = len(df) / (3.1415 * (float(radius)**2)) if radius else None
-        turnover_days = 60
-        price_factor = min(price_spread or 0, 100) * 0.4
-        turnover_factor = (turnover_days/90) * 100 * 0.35
-        density_factor = min(market_density*20, 100) * 0.25 if market_density else 35
-        competition_index = round(price_factor + turnover_factor + density_factor)
-    except:
-        pass
-    return avg_mileage, avg_price, median_price, competition_index
-
 # Main /scrape endpoint
 @app.get("/scrape")
-def scrape(
-    make: str = Query(...),
-    model: str = Query(""),
-    postcode: str = Query("BB7 3BB"),
-    radius: str = Query("10")
-):
-    retries = 3
-    while retries > 0:
-        try:
-            start_time = time.time()
-            driver = setup_driver()
-            cars = [{"make": make, "model": model, "variant": ""}]
-            criteria = {"postcode": postcode, "radius": radius}
-            data = scrape_autotrader(cars, criteria, driver)
-            driver.quit()
-            if not data:
-                return {"status": "no data found"}
-            filename, df = save_csv(data)
-            df = deduplicate_data(df)
-            graph_file = create_price_graph(df, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-            avg_mileage, avg_price, median_price, competition_index = analyze_market(df, radius)
-            elapsed = time.time() - start_time
-            return {
-                "status": "success",
-                "listings_scraped": len(df),
-                "average_mileage": avg_mileage,
-                "average_price": avg_price,
-                "median_price": median_price,
-                "competition_index": competition_index,
-                "csv_file": filename,
-                "graph_file": graph_file,
-                "elapsed_seconds": elapsed
-            }
-        
-        except Exception as e:
-            retries -= 1
-            if retries == 0:
-                return {"status": "error", "message": str(e)}
-            time.sleep(5)
+def scrape(make: str = Query(...), model: str = Query(""), postcode: str = Query("BB7 3BB"), radius: str = Query("10")):
+    try:
+        start_time = time.time()
+        driver = setup_driver()
+        cars = [{"make": make, "model": model, "variant": ""}]
+        criteria = {"postcode": postcode, "radius": radius}
+        data = scrape_autotrader(cars, criteria, driver)
+        driver.quit()
+
+        if not data:
+            return {"status": "no data found"}
+
+        filename, df = save_csv(data)
+        graph_file = create_price_graph(df, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+        elapsed = time.time() - start_time
+
+        return {
+            "status": "success",
+            "listings_scraped": len(df),
+            "csv_file": filename,
+            "graph_file": graph_file,
+            "elapsed_seconds": elapsed
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# Debug screenshot endpoint
+@app.get("/debug")
+def get_debug_screenshot():
+    screenshot_path = "/app/page_debug.png"
+    if os.path.exists(screenshot_path):
+        return FileResponse(screenshot_path, media_type='image/png', filename="page_debug.png")
+    else:
+        return {"status": "error", "message": "No screenshot found"}
