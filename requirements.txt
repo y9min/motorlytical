@@ -1,1 +1,5 @@
-
+pandas
+selenium
+beautifulsoup4
+selenium-stealth
+matplotlib
