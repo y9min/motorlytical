@@ -118,12 +118,12 @@ def scrape_autotrader(cars, criteria, driver):
         scroll_page(driver)
 
         # ✅ Find listings with retry
-        listings = driver.find_elements(By.CSS_SELECTOR, "li.search-page__result")
+        listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
 
         if not listings:
             # Retry once after waiting
             time.sleep(4)
-            listings = driver.find_elements(By.CSS_SELECTOR, "li.search-page__result")
+            listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
 
         for listing in listings:
             try:
