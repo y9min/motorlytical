@@ -15,6 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium_stealth import stealth
 from bs4 import BeautifulSoup
+from fastapi.responses import FileResponse
 
 # Disable pandas warnings
 pd.options.mode.chained_assignment = None
@@ -235,6 +236,15 @@ def scrape(
                 "graph_file": graph_file,
                 "elapsed_seconds": elapsed
             }
+
+@app.get("/debug")
+def get_debug_screenshot():
+    screenshot_path = "/app/page_debug.png"
+    if os.path.exists(screenshot_path):
+        return FileResponse(screenshot_path, media_type='image/png', filename="page_debug.png")
+    else:
+        return {"status": "error", "message": "No screenshot found"}
+        
         except Exception as e:
             retries -= 1
             if retries == 0:
