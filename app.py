@@ -11,25 +11,32 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 import streamlit as st
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium_stealth import stealth
+import undetected_chromedriver.v2 as uc
+import random
+
+# List of user agents (you already have this in your code)
+user_agents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
+]
+
+options = uc.ChromeOptions()
+options.headless = True
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--disable-notifications")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument(f"user-agent={random.choice(user_agents)}")
+options.add_argument("--blink-settings=imagesEnabled=false")
+
+driver = uc.Chrome(options=options)
 
 pd.options.mode.chained_assignment = None  # default='warn'
 warnings.filterwarnings("ignore", category=Warning)
-
-# User agent list
-user_agents = [
- "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
- "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
- "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
- "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
- "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
-]
 
 # Define search criteria
 
