@@ -83,7 +83,6 @@ def extract_car_details(text):
         pass
     return details
 
-# Scrape Autotrader
 def scrape_autotrader(cars, criteria, driver):
     data = []
 
@@ -91,29 +90,63 @@ def scrape_autotrader(cars, criteria, driver):
         url = build_url(car, criteria)
         driver.get(url)
 
+        print(f"Visiting URL: {url}")
+
+        # ✅ Wait longer for page JS to fully load
         time.sleep(8)
 
         try:
             WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.ID, "onetrust-reject-all-handler"))
             ).click()
+            print("Rejected cookies.")
             time.sleep(3)
         except Exception:
-            pass
+            print("No cookie popup found.")
 
-        scroll_page(driver)
+        # ✅ Aggressive scroll + wait
+        for _ in range(5):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(3)  # wait for lazy loading
 
+        # ✅ Save screenshot after scroll
         try:
-            driver.save_screenshot("/app/page_debug.png")
-            print("Saved page_debug.png successfully!")
+            driver.save_screenshot("/app/page_debug_scroll.png")
+            print("Saved screenshot after scroll.")
         except Exception as e:
-            print(f"Failed to save screenshot: {e}")
+            print(f"Failed to save scroll screenshot: {e}")
 
-        listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
+        # ✅ Try to find listings, retry 3 times
+        listings = []
+        for attempt in range(3):
+            try:
+                listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
+                if listings:
+                    print(f"Found {len(listings)} listings on attempt {attempt+1}!")
+                    break  # found!
+            except Exception as e:
+                print(f"Attempt {attempt+1} failed to find listings: {e}")
+            time.sleep(4)  # wait and retry
+
+        # ✅ Fallback selector if still no listings
+        if not listings:
+            print("Trying fallback selector...")
+            try:
+                listings = driver.find_elements(By.CSS_SELECTOR, "article[data-testid='search-result']")
+                if listings:
+                    print(f"Found {len(listings)} listings with fallback selector!")
+            except Exception as e:
+                print(f"Fallback selector also failed: {e}")
+
+        # ✅ Save final page screenshot
+        try:
+            driver.save_screenshot("/app/page_debug_final.png")
+            print("Saved final page screenshot.")
+        except Exception as e:
+            print(f"Failed to save final screenshot: {e}")
 
         if not listings:
-            time.sleep(6)
-            listings = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='search-listing']")
+            print("No listings found after retries.")
 
         for listing in listings:
             try:
@@ -124,7 +157,8 @@ def scrape_autotrader(cars, criteria, driver):
                 details = extract_car_details(text)
                 details["link"] = link
                 data.append(details)
-            except Exception:
+            except Exception as e:
+                print(f"Error extracting listing: {e}")
                 continue
 
     return data
