@@ -97,33 +97,46 @@ def extract_car_details(text):
 # Scrape Autotrader
 def scrape_autotrader(cars, criteria, driver):
     data = []
+
     for car in cars:
         url = build_url(car, criteria)
         driver.get(url)
-        time.sleep(5)
+
+        # ✅ Extra long wait to let headless browser fully load JS
+        time.sleep(6)
+
+        # ✅ Aggressive cookie rejection
         try:
-            WebDriverWait(driver, 5).until(
+            WebDriverWait(driver, 8).until(
                 EC.element_to_be_clickable((By.ID, "onetrust-reject-all-handler"))
             ).click()
-        except:
-            pass
-        time.sleep(2)
+            time.sleep(2)  # Let cookie banner fully close
+        except Exception:
+            pass  # Ignore if no cookie popup
+
+        # ✅ Stronger scroll
         scroll_page(driver)
-        page_source = driver.page_source
-        soup = BeautifulSoup(page_source, "html.parser")
-        listings = soup.select("li.search-page__result")
+
+        # ✅ Find listings with retry
+        listings = driver.find_elements(By.CSS_SELECTOR, "li.search-page__result")
+
+        if not listings:
+            # Retry once after waiting
+            time.sleep(4)
+            listings = driver.find_elements(By.CSS_SELECTOR, "li.search-page__result")
 
         for listing in listings:
             try:
-                text = listing.get_text(separator=" ").strip()
-                link = listing.find("a", href=True)["href"]
+                title = listing.text
+                link = listing.find_element(By.TAG_NAME, "a").get_attribute("href")
                 if not link.startswith("http"):
                     link = "https://www.autotrader.co.uk" + link
-                details = extract_car_details(text)
+                details = extract_car_details(title)
                 details["link"] = link
                 data.append(details)
-            except Exception as e:
+            except Exception:
                 continue
+
     return data
 
 # Save CSV
